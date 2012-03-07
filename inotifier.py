@@ -55,8 +55,8 @@ class EventHandler(pyinotify.ProcessEvent):
             raise RuntimeError(u'Unknown watch: ' + unicode(event.path))
         
         # Send eMail
-        msg = MIMEText(w.body.substitute(event.__dict__).encode(w.encoding), w.btype)
-        msg.set_charset(w.encoding)
+        msg = MIMEText(w.body.substitute(event.__dict__), w.btype)
+        msg.set_charset('utf-8')
         msg['Subject'] = w.subject.substitute(event.__dict__)
         msg['From'] = w.mailfrom
         msg['To'] = w.mailto
@@ -73,7 +73,7 @@ class WatchItem():
     ''' A item bein' watched '''
 
     def __init__(self, name, path, events, recurse, mailto, mailfrom, subject,
-            body, encoding, btype):
+            body, btype):
         self.name = name
         self.path = path
         self.events = events
@@ -82,7 +82,6 @@ class WatchItem():
         self.mailfrom = mailfrom
         self.subject = subject
         self.body = body
-        self.encoding = encoding
         self.btype=btype
 
 class Main():
@@ -123,7 +122,6 @@ class Main():
                 config.get(s, 'mailfrom'),
                 Template(config.get(s, 'subject')),
                 Template(config.get(s, 'body')),
-                config.get(s, 'encoding'),
                 config.get(s, 'type'),
             )
     
