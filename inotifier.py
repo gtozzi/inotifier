@@ -29,9 +29,10 @@ import argparse, ConfigParser
 import smtplib
 from email.mime.text import MIMEText
 from string import Template
+import re
 
 NAME = 'iNotifier'
-VERSION = '1.0'
+VERSION = '1.1'
 
 class EventHandler(pyinotify.ProcessEvent):
     ''' Handles events '''
@@ -42,8 +43,6 @@ class EventHandler(pyinotify.ProcessEvent):
         super(EventHandler,self).__init__()
     
     def process_default(self, event):
-        if self.verbose:
-            print 'Event', event.maskname, 'on', event.path, ':', event
 
         # Find the watch item
         w = None
@@ -52,7 +51,17 @@ class EventHandler(pyinotify.ProcessEvent):
                 w = self.watchlist[k]
                 break
         if not w:
+            if self.verbose:
+                print 'Event', event.maskname, 'on', event.path, ':', event
             raise RuntimeError(u'Unknown watch: ' + unicode(event.path))
+        
+        # Check for ignore
+        if w.ignore and w.ignore.match(event.name):
+            return
+        
+        # Print event
+        if self.verbose:
+            print 'Event', event.maskname, 'on', event.path, ':', event
         
         # Send eMail
         msg = MIMEText(w.body.substitute(event.__dict__), w.btype)
@@ -72,12 +81,13 @@ class EventHandler(pyinotify.ProcessEvent):
 class WatchItem():
     ''' A item bein' watched '''
 
-    def __init__(self, name, path, events, recurse, mailto, mailfrom, subject,
-            body, btype):
+    def __init__(self, name, path, events, recurse, ignore, mailto, mailfrom,
+            subject, body, btype):
         self.name = name
         self.path = path
         self.events = events
         self.recurse = recurse
+        self.ignore = ignore
         self.mailto = mailto
         self.mailfrom = mailfrom
         self.subject = subject
@@ -113,11 +123,16 @@ class Main():
         for s in config.sections():
             events = map(lambda i: i.strip(), config.get(s,'events').split(','))
             events = sum(map(lambda i: getattr(pyinotify,i), events))
+            try:
+                ignore = re.compile(config.get(s, 'ignore'))
+            except ConfigParser.NoOptionError:
+                ignore = None
             self.watch[config.get(s, 'path')] = WatchItem(
                 s,
                 config.get(s, 'path'),
                 events,
                 config.getboolean(s, 'recurse'),
+                ignore,
                 config.get(s, 'mailto'),
                 config.get(s, 'mailfrom'),
                 Template(config.get(s, 'subject')),
